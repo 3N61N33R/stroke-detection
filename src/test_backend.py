@@ -23,18 +23,19 @@ from PIL import Image
 # ==============================================================================
 # Resolve the project root relative to this script (assumed to be in src/)
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, '..'))
+ROOT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
 
 # Add Root to Sys Path to allow module imports
 if ROOT_DIR not in sys.path:
     sys.path.append(ROOT_DIR)
 
 # Define resource paths
-MODEL_PATH = os.path.join(ROOT_DIR, 'models', 'stroke_mvp.pth')
-LOGIC_PATH = os.path.join(ROOT_DIR, 'src', 'logic', 'stroke_logic.pl')
+MODEL_PATH = os.path.join(ROOT_DIR, "models", "stroke_mvp.pth")
+LOGIC_PATH = os.path.join(ROOT_DIR, "src", "logic", "stroke_logic.pl")
 
 # Import Bridge after path setup
 from src.bridge.dpl_interface import StrokeBridge
+
 
 # ==============================================================================
 # HELPER FUNCTIONS
@@ -47,17 +48,18 @@ def create_dummy_image(height=224, width=224):
     arr = np.random.randint(0, 255, (height, width, 3), dtype=np.uint8)
     return Image.fromarray(arr)
 
+
 def main():
-    print(f"🚀 Initializing Backend Integration Test...")
+    print("🚀 Initializing Backend Integration Test...")
     print(f"📂 Project Root: {ROOT_DIR}")
-    
+
     # ---------------------------------------------------------
     # 1. VALIDATION CHECKS
     # ---------------------------------------------------------
     if not os.path.exists(MODEL_PATH):
         print(f"⚠️  WARNING: Model file not found at {MODEL_PATH}")
         print("    (Inference will proceed with random weights for testing purposes)")
-    
+
     if not os.path.exists(LOGIC_PATH):
         print(f"❌ ERROR: Logic file not found at {LOGIC_PATH}")
         print("    (Cannot proceed without the Prolog knowledge base)")
@@ -82,13 +84,13 @@ def main():
     # Synthetic Patient Profile:
     # Female, presenting with Speech and Arm issues (Classic FAST symptoms)
     test_patient = {
-        'gender': 'Female',         
-        'speech': True,             
-        'arm': True,                
-        'vision': False,
-        'dizzy': False,
-        'history_tia': False,
-        'prior_stroke': False
+        "gender": "Female",
+        "speech": True,
+        "arm": True,
+        "vision": False,
+        "dizzy": False,
+        "history_tia": False,
+        "prior_stroke": False,
     }
 
     print(f"📋 Patient Profile: {test_patient}")
@@ -106,18 +108,20 @@ def main():
     # ---------------------------------------------------------
     # 5. DISPLAY RESULTS
     # ---------------------------------------------------------
-    prob = results.get('stroke_prob', 0.0) * 100
-    category = results.get('risk_category', 'Unknown').upper()
-    call_911 = results.get('call_911', False)
+    prob = results.get("stroke_prob", 0.0) * 100
+    category = results.get("risk_category", "Unknown").upper()
+    call_911 = results.get("call_911", False)
 
-    print("\n" + "="*40)
+    print("\n" + "=" * 40)
     print("        DIAGNOSTIC REPORT        ")
-    print("="*40)
+    print("=" * 40)
     print(f"Stroke Probability:   {prob:.2f}%")
     print(f"Risk Category:        {category}")
-    print(f"Recommendation:       {'CALL 911 NOW' if call_911 else 'Seek Medical Advice'}")
-    print("="*40 + "\n")
+    print(
+        f"Recommendation:       {'CALL 911 NOW' if call_911 else 'Seek Medical Advice'}"
+    )
+    print("=" * 40 + "\n")
+
 
 if __name__ == "__main__":
     main()
-    
