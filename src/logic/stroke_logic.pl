@@ -38,15 +38,15 @@ smile_face(P, SmileImg).
 facial_droop_detected(P) :-
     neutral_face(P, NeutralImg),
     smile_face(P, SmileImg),
-    face_state(NeutralImg, normal),
-    face_state(SmileImg, droop).
+    check_face(NeutralImg, normal),
+    check_face(SmileImg, droop).
 
 % Static droop: both state droop
 facial_droop_detected(P) :-
     neutral_face(P, NeutralImg),
     smile_face(P, SmileImg),
-    face_state(NeutralImg, droop),
-    face_state(SmileImg, droop).
+    check_face(NeutralImg, droop),
+    check_face(SmileImg, droop).
 
 % ------------------------------------------------------------------------------
 % 2. SYMPTOM LOGIC (The "A", "S", and "T" in FAST)
@@ -77,18 +77,16 @@ fast_positive(P) :- arm_positive(P).
 
 % Moderate Confidence: User reported symptoms only (No visual confirmation).
 0.56::stroke(P) :-
-    fast_positive(P),
     \+ facial_droop_detected(P),
     speech_positive(P).
 
 0.56::stroke(P) :-
-    fast_positive(P),
     \+ facial_droop_detected(P),
     arm_positive(P).
 
 % Visual Only: Camera detects droop, but user reports no other symptoms.
 0.60::stroke(P) :-
-    fast_positive(P),
+    facial_droop_detected(P),
     \+ speech_positive(P),
     \+ arm_positive(P).
 
@@ -99,11 +97,13 @@ fast_positive(P) :- arm_positive(P).
 
 % Balance (Dizziness)
 0.20::hidden_stroke(P) :-
-    dizziness(P).
+    dizziness(P),
+    \+ fast_positive(P).
 
 % Eyes (Vision Change)
 0.527::hidden_stroke(P) :-
-    vision_change(P).
+    vision_change(P),
+    \+ fast_positive(P).
 
 % ------------------------------------------------------------------------------
 % 5. RISK MODIFIERS (PATIENT HISTORY)
@@ -149,7 +149,7 @@ seek_urgent_care(P) :-
 
 % EVALUATE: Symptoms present but likely a mimic (e.g., old stroke).
 consider_evaluation(P) :-
-    hidden_stroke_risk(P),
+    hidden_stroke(P),
     is_mimic(P).
 
 consider_evaluation(P) :-
