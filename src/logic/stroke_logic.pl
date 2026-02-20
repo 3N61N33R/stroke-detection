@@ -28,7 +28,7 @@ check_face(null_patient, null).
 % Facial droop is confirmed if the smile deviates from the neutral state or
 % if both states register as droop.
 
-nn(face_net, [Img], State, [normal,droop]) :: check_face(Img, State).
+% nn(face_net, [Img], State, [normal,droop]) :: check_face(Img, State).
 
 % Face states per patient
 neutral_face(P, NeutralImg).
