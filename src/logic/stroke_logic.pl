@@ -28,52 +28,67 @@ check_face(null_patient, null).
 % Facial droop is confirmed if the smile deviates from the neutral state or
 % if both states register as droop.
 
-facial_droop_detected(NeutralImg, SmileImg) :-
+% nn(face_net, [Img], State, [normal,droop]) :: check_face(Img, State).
+
+% Face states per patient
+neutral_face(P, NeutralImg).
+smile_face(P, SmileImg).
+
+% Dynamic droop: neutral normal, smile droop
+facial_droop_detected(P) :-
+    neutral_face(P, NeutralImg),
+    smile_face(P, SmileImg),
     check_face(NeutralImg, normal),
     check_face(SmileImg, droop).
 
-facial_droop_detected(NeutralImg, SmileImg) :-
+% Static droop: both state droop
+facial_droop_detected(P) :-
+    neutral_face(P, NeutralImg),
+    smile_face(P, SmileImg),
     check_face(NeutralImg, droop),
     check_face(SmileImg, droop).
 
 % ------------------------------------------------------------------------------
-% 2. GENDER & SYMPTOM BIAS
+% 2. SYMPTOM LOGIC (The "A", "S", and "T" in FAST)
+% These rules define the presence of speech issues, arm weakness, and vision changes.
 % ------------------------------------------------------------------------------
-% Probabilistic weights derived from stroke presentation literature.
-% Women have a statistically higher likelihood of presenting with non-traditional
-% symptoms, affecting the weighted risk of speech issues.
 
-0.56::speech_risk(P) :- gender(P, female), speech_issue(P).
-0.42::speech_risk(P) :- gender(P, male), speech_issue(P).
+speech_positive(P) :- speech_issue(P).
+arm_positive(P) :- arm_weakness(P).
+vision_positive(P) :- vision_change(P).
+dizziness_positive(P) :- dizziness(P).
 
-0.89::arm_risk(P) :- arm_weakness(P).
+fast_positive(P) :- facial_droop_detected(P).
+fast_positive(P) :- speech_positive(P).
+fast_positive(P) :- arm_positive(P).
 
 % ------------------------------------------------------------------------------
 % 3. STROKE PROBABILITY (CORE FAST LOGIC)
 % ------------------------------------------------------------------------------
-% Defines the "Fast Positive" condition: any core FAST symptom is present.
-fast_positive(P) :- facial_droop_detected(_Neutral, _Smile).
-fast_positive(P) :- speech_risk(P).
-fast_positive(P) :- arm_risk(P).
 
 % High Confidence: Neural vision confirmation + User reported symptoms.
-0.73::stroke_probability(P) :-
-    fast_positive(P),
-    facial_droop_detected(_Neutral, _Smile),
-    (speech_risk(P) ; arm_risk(P)).
+0.73::stroke(P) :-
+    facial_droop_detected(P),
+    speech_positive(P).
+
+0.73::stroke(P) :-
+    facial_droop_detected(P),
+    arm_positive(P).
 
 % Moderate Confidence: User reported symptoms only (No visual confirmation).
-0.56::stroke_probability(P) :-
-    fast_positive(P),
-    \+ facial_droop_detected(_Neutral, _Smile),
-    (speech_risk(P) ; arm_risk(P)).
+0.56::stroke(P) :-
+    \+ facial_droop_detected(P),
+    speech_positive(P).
+
+0.56::stroke(P) :-
+    \+ facial_droop_detected(P),
+    arm_positive(P).
 
 % Visual Only: Camera detects droop, but user reports no other symptoms.
-0.60::stroke_probability(P) :-
-    fast_positive(P),
-    facial_droop_detected(_Neutral, _Smile),
-    \+ speech_risk(P),
-    \+ arm_risk(P).
+0.60::stroke(P) :-
+    facial_droop_detected(P),
+    \+ speech_positive(P),
+    \+ arm_positive(P).
 
 % ------------------------------------------------------------------------------
 % 4. MISSED SYMPTOMS (The "BE" in BE-FAST)
@@ -81,14 +96,14 @@ fast_positive(P) :- arm_risk(P).
 % These rules capture posterior circulation strokes often missed by standard FAST.
 
 % Balance (Dizziness)
-0.20::hidden_stroke_risk(P) :-
-    \+ stroke_probability(P),
-    dizziness(P).
+0.20::hidden_stroke(P) :-
+    dizziness(P),
+    \+ fast_positive(P).
 
 % Eyes (Vision Change)
-0.527::hidden_stroke_risk(P) :-
-    \+ stroke_probability(P),
-    vision_change(P).
+0.527::hidden_stroke(P) :-
+    vision_change(P),
+    \+ fast_positive(P).
 
 % ------------------------------------------------------------------------------
 % 5. RISK MODIFIERS (PATIENT HISTORY)
@@ -108,23 +123,23 @@ fast_positive(P) :- arm_risk(P).
 
 % CRITICAL: Call 911 immediately.
 urgent_call_911(P) :-
-    stroke_probability(P),
+    stroke(P),
     fast_positive(P),
     \+ is_mimic(P).
 
 urgent_call_911(P) :-
-    stroke_probability(P),
+    stroke(P),
     recurrence_boost(P),
     \+ is_mimic(P).
 
 % URGENT: Seek medical care ASAP (Lower probability or hidden symptoms).
 seek_urgent_care(P) :-
-    stroke_probability(P),
+    stroke(P),
     \+ urgent_call_911(P),
     \+ is_mimic(P).
 
 seek_urgent_care(P) :-
-    hidden_stroke_risk(P),
+    hidden_stroke(P),
     \+ is_mimic(P).
 
 seek_urgent_care(P) :-
@@ -134,13 +149,13 @@ seek_urgent_care(P) :-
 
 % EVALUATE: Symptoms present but likely a mimic (e.g., old stroke).
 consider_evaluation(P) :-
-    hidden_stroke_risk(P),
+    hidden_stroke(P),
     is_mimic(P).
 
 consider_evaluation(P) :-
     is_mimic(P),
-    \+ stroke_probability(P),
-    \+ hidden_stroke_risk(P).
+    \+ stroke(P),
+    \+ hidden_stroke(P).
 
 % ------------------------------------------------------------------------------
 % 7. UX HELPERS (RISK CATEGORIZATION)
@@ -151,7 +166,7 @@ risk_category(critical, P) :- urgent_call_911(P).
 risk_category(high, P)     :- seek_urgent_care(P), \+ urgent_call_911(P).
 risk_category(moderate, P) :- consider_evaluation(P), \+ seek_urgent_care(P), \+ urgent_call_911(P).
 
-% Low risk default
+% Low risk default category if no urgent symptoms or mimics are detected.
 risk_category(low, P) :-
     \+ urgent_call_911(P),
     \+ seek_urgent_care(P),
@@ -159,6 +174,6 @@ risk_category(low, P) :-
 
 risk_category(low, P) :-
     is_mimic(P),
-    \+ stroke_probability(P),
-    \+ hidden_stroke_risk(P),
+    \+ stroke(P),
+    \+ hidden_stroke(P),
     \+ recurrence_boost(P).
