@@ -134,66 +134,24 @@ class StrokeBridge:
         # If model outputs logits, apply F.softmax here.
         return output[0][0].item(), output[0][1].item()
 
-    # def _get_score(self, answers):
-    #     """
-    #     Helper to safely extract the probability score from DeepProbLog results.
-    #     Handles cases where the engine returns a logical proof (Dict) instead of a float.
-    #     """
-    #     if not answers:
-    #         return 0.0
-        
-    #     val = answers[0].result
-        
-    #     # Case A: Standard Probability (Float)
-    #     if isinstance(val, (int, float)):
-    #         return float(val)
-        
-    #     # Case B: Logical Proof (Dict) -> Implies Deterministic True (1.0)
-    #     if isinstance(val, dict):
-    #         return 1.0
-            
-    #     return 0.0
     def _get_score(self, answers):
+        """
+        Helper to safely extract the probability score from DeepProbLog results.
+        Handles cases where the engine returns a logical proof (Dict) instead of a float.
+        """
         if not answers:
             return 0.0
-
+        
         val = answers[0].result
-
-        def to_float(x):
-            # torch tensor?
-            try:
-                import torch
-                if isinstance(x, torch.Tensor):
-                    return float(x.item())
-            except Exception:
-                pass
-
-            # most ProbLog semiring numbers support float()
-            try:
-                return float(x)
-            except Exception:
-                return None
-
-        # Direct number
-        fx = to_float(val)
-        if fx is not None:
-            return fx
-
-        # Dict of substitutions -> probs
+        
+        # Case A: Standard Probability (Float)
+        if isinstance(val, (int, float)):
+            return float(val)
+        
+        # Case B: Logical Proof (Dict) -> Implies Deterministic True (1.0)
         if isinstance(val, dict):
-            probs = []
-            for v in val.values():
-                fv = to_float(v)
-                if fv is not None:
-                    probs.append(fv)
-
-            # If dict is non-empty but values weren't numeric, treat "any proof" as True
-            if not probs:
-                return 1.0 if len(val) > 0 else 0.0
-
-            return max(probs)  # for ground queries usually only one value
-
-        # Other types
+            return 1.0
+            
         return 0.0
 
     def analyze_patient(self, neutral_img, smile_img, user_data):
@@ -209,7 +167,7 @@ class StrokeBridge:
         # ---------------------------------------------------------
         n_normal, n_droop = self.get_face_probabilities(neutral_img)
         s_normal, s_droop = self.get_face_probabilities(smile_img)
-
+        
         # ---------------------------------------------------------
         # B. Symbolic Phase: Construct the Knowledge Base
         # ---------------------------------------------------------
@@ -242,12 +200,7 @@ class StrokeBridge:
                 facts.append(f"new_symptom({patient_id}).")
 
         # 3. Bridge the Neural Facts to the Patient
-        # facts.append(f"facial_droop_detected(img_neutral, img_smile).")
-        facts.append(f"neutral_face({patient_id}, img_neutral).")
-        facts.append(f"smile_face({patient_id}, img_smile).")
-
-        # printout facts
-        facts
+        facts.append(f"facial_droop_detected(img_neutral, img_smile).")
 
         # ---------------------------------------------------------
         # C. Inference Phase: Run the Logic Program
@@ -265,45 +218,14 @@ class StrokeBridge:
             
             # Initialize Engine for this specific patient
             model = Model(temp_path, [])
-
             engine = ExactEngine(model)
             model.set_engine(engine)
 
             # Define Queries
-            # pid_term = Constant(patient_id)
-            pid_term = Term(patient_id)
-
-            # --- Debug / explanation queries ---
-            debug_queries = {
-                # intermediate logic
-                "facial_droop_detected": Query(Term("facial_droop_detected", pid_term)),
-                "fast_positive": Query(Term("fast_positive", pid_term)),
-                "speech_positive": Query(Term("speech_positive", pid_term)),
-                "arm_positive": Query(Term("arm_positive", pid_term)),
-                "vision_positive": Query(Term("vision_positive", pid_term)),
-                "dizziness_positive": Query(Term("dizziness_positive", pid_term)),
-
-                # probabilistic outcomes
-                "stroke": Query(Term("stroke", pid_term)),
-                "hidden_stroke": Query(Term("hidden_stroke", pid_term)),
-                "recurrence_boost": Query(Term("recurrence_boost", pid_term)),
-                "is_mimic": Query(Term("is_mimic", pid_term)),
-
-                # decision outputs
-                "urgent_call_911": Query(Term("urgent_call_911", pid_term)),
-                "seek_urgent_care": Query(Term("seek_urgent_care", pid_term)),
-            }
-
-            debug = {}
-            for k, q in debug_queries.items():
-                ans = model.solve([q])
-                debug[k] = self._get_score(ans)
-
-            results["debug"] = debug
+            pid_term = Constant(patient_id)
             
             # Query 1: Probability of Stroke
-            # q1 = Query(Term('stroke_probability', pid_term))
-            q1 = Query(Term('stroke', pid_term))
+            q1 = Query(Term('stroke_probability', pid_term))
             ans1 = model.solve([q1])
             results['stroke_prob'] = self._get_score(ans1)
 
@@ -323,8 +245,7 @@ class StrokeBridge:
             best_score = -1.0
             
             for cat in categories:
-                # q_cat = Query(Term('risk_category', Constant(cat), pid_term))
-                q_cat = Query(Term('risk_category', Term(cat), pid_term))
+                q_cat = Query(Term('risk_category', Constant(cat), pid_term))
                 ans_cat = model.solve([q_cat])
                 score = self._get_score(ans_cat)
                 
