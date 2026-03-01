@@ -122,24 +122,6 @@ def main():
     )
     print("=" * 40 + "\n")
 
-    face = results.get("face", {})
-    debug = results.get("debug", {})
-
-    print("\n--- Face model ---")
-    if face:
-        print(f"Neutral: normal={face['neutral']['normal']:.3f}, droop={face['neutral']['droop']:.3f}")
-        print(f"Smile:   normal={face['smile']['normal']:.3f}, droop={face['smile']['droop']:.3f}")
-
-    print("\n--- Logic probabilities / flags ---")
-    for k in [
-        "facial_droop_detected", "fast_positive",
-        "speech_positive", "arm_positive", "vision_positive", "dizziness_positive",
-        "stroke", "hidden_stroke", "recurrence_boost", "is_mimic",
-        "urgent_call_911", "seek_urgent_care"
-    ]:
-        if k in debug:
-            print(f"{k:22s}: {debug[k]*100:.2f}%")
-
 
 if __name__ == "__main__":
     main()
