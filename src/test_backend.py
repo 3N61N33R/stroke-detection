@@ -2,12 +2,13 @@
 Backend Integration Test
 ========================
 
-This script verifies the full Neuro-Symbolic pipeline without requiring the UI.
+This script validates the native DeepProbLog neuro-symbolic backend.
 It performs the following checks:
-1. Verifies that project paths (Models, Logic) are correctly resolved.
-2. Initializes the StrokeBridge (loading PyTorch model + SWI-Prolog).
-3. Generates dummy synthetic images to simulate camera input.
-4. Runs a full inference cycle on a synthetic patient profile.
+1. Verifies that project paths resolve correctly.
+2. Initializes the DeepProbLog bridge (PyTorch + Logic Graph).
+3. Generates synthetic test images.
+4. Executes inference across MULTIPLE patient profiles to verify 
+   that symptom probabilities correctly compound (vary).
 
 Usage:
     python src/test_backend.py
@@ -19,21 +20,19 @@ import numpy as np
 from PIL import Image
 
 # ==============================================================================
-# SETUP PATHS
+# PATH SETUP
 # ==============================================================================
-# Resolve the project root relative to this script (assumed to be in src/)
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, ".."))
 
-# Add Root to Sys Path to allow module imports
 if ROOT_DIR not in sys.path:
     sys.path.append(ROOT_DIR)
 
-# Define resource paths
+# Ensure these match the actual names in your directory!
 MODEL_PATH = os.path.join(ROOT_DIR, "models", "stroke_mvp.pth")
 LOGIC_PATH = os.path.join(ROOT_DIR, "src", "logic", "stroke_logic.pl")
 
-# Import Bridge after path setup
+# Import the Bridge we just built
 from src.bridge.dpl_interface import StrokeBridge
 
 
@@ -41,87 +40,75 @@ from src.bridge.dpl_interface import StrokeBridge
 # HELPER FUNCTIONS
 # ==============================================================================
 def create_dummy_image(height=224, width=224):
-    """
-    Creates a random noise RGB image.
-    Used to mock camera input when a real camera is not available.
-    """
+    """Creates a synthetic RGB image (random noise)."""
     arr = np.random.randint(0, 255, (height, width, 3), dtype=np.uint8)
     return Image.fromarray(arr)
 
 
+# ==============================================================================
+# MAIN TEST ROUTINE
+# ==============================================================================
 def main():
-    print("🚀 Initializing Backend Integration Test...")
-    print(f"📂 Project Root: {ROOT_DIR}")
+    print("🚀 Initializing DeepProbLog Integration Test")
+    print(f"📂 Project Root: {ROOT_DIR}\n")
 
-    # ---------------------------------------------------------
-    # 1. VALIDATION CHECKS
-    # ---------------------------------------------------------
-    if not os.path.exists(MODEL_PATH):
-        print(f"⚠️  WARNING: Model file not found at {MODEL_PATH}")
-        print("    (Inference will proceed with random weights for testing purposes)")
-
-    if not os.path.exists(LOGIC_PATH):
-        print(f"❌ ERROR: Logic file not found at {LOGIC_PATH}")
-        print("    (Cannot proceed without the Prolog knowledge base)")
+    if not os.path.exists(MODEL_PATH) or not os.path.exists(LOGIC_PATH):
+        print("❌ ERROR: Model or Logic file not found. Check paths.")
         return
 
-    # ---------------------------------------------------------
-    # 2. LOAD BRIDGE
-    # ---------------------------------------------------------
+    # 1. INITIALIZE BRIDGE
     try:
         bridge = StrokeBridge(model_path=MODEL_PATH, logic_path=LOGIC_PATH)
+        print("✅ Native DeepProbLog bridge initialized successfully.\n")
     except Exception as e:
-        print(f"❌ Critical Error initializing StrokeBridge: {e}")
+        print(f"❌ Failed to initialize bridge: {e}")
         return
 
-    # ---------------------------------------------------------
-    # 3. PREPARE TEST DATA
-    # ---------------------------------------------------------
-    print("\n📸 Generating synthetic patient data...")
+    # 2. GENERATE SYNTHETIC CAMERA DATA
+    print("📸 Generating synthetic neutral and smile images...")
     neutral_img = create_dummy_image()
     smile_img = create_dummy_image()
 
-    # Synthetic Patient Profile:
-    # Female, presenting with Speech and Arm issues (Classic FAST symptoms)
-    test_patient = {
-        "gender": "Female",
-        "speech": True,
-        "arm": True,
-        "vision": False,
-        "dizzy": False,
-        "history_tia": False,
-        "prior_stroke": False,
-    }
+    # 3. DEFINE TEST PATIENTS (To prove probabilities vary)
+    test_cases = [
+        {
+            "id": "Patient A (Visual Only, No Symptoms)",
+            "data": {'gender': 'male', 'speech': False, 'arm': False, 'vision': False}
+        },
+        {
+            "id": "Patient B (Visual + Speech Issue)",
+            "data": {'gender': 'male', 'speech': True, 'arm': False, 'vision': False}
+        },
+        {
+            "id": "Patient C (Visual + Speech + Arm Weakness)",
+            "data": {'gender': 'male', 'speech': True, 'arm': True, 'vision': False}
+        }
+    ]
 
-    print(f"📋 Patient Profile: {test_patient}")
+    # 4. RUN INFERENCE FOR EACH PATIENT
+    print("\n🧠 Executing varying symptom tests...\n")
+    
+    print("=" * 60)
+    print(f"{'PATIENT PROFILE':<40} | {'STROKE PROB':<15}")
+    print("=" * 60)
 
-    # ---------------------------------------------------------
-    # 4. RUN INFERENCE
-    # ---------------------------------------------------------
-    print("\n🧠 Executing Neuro-Symbolic Inference...")
-    try:
-        results = bridge.analyze_patient(neutral_img, smile_img, test_patient)
-    except Exception as e:
-        print(f"❌ Inference failed: {e}")
-        return
+    for case in test_cases:
+        try:
+            results = bridge.analyze_patient(
+                neutral_img=neutral_img,
+                smile_img=smile_img,
+                patient_data=case["data"]
+            )
+            
+            prob = results.get("stroke_prob", 0.0) * 100
+            print(f"{case['id']:<40} | {prob:>6.2f}%")
+            
+        except Exception as e:
+            print(f"❌ Inference failed for {case['id']}: {e}")
 
-    # ---------------------------------------------------------
-    # 5. DISPLAY RESULTS
-    # ---------------------------------------------------------
-    prob = results.get("stroke_prob", 0.0) * 100
-    category = results.get("risk_category", "Unknown").upper()
-    call_911 = results.get("call_911", False)
-
-    print("\n" + "=" * 40)
-    print("        DIAGNOSTIC REPORT        ")
-    print("=" * 40)
-    print(f"Stroke Probability:   {prob:.2f}%")
-    print(f"Risk Category:        {category}")
-    print(
-        f"Recommendation:       {'CALL 911 NOW' if call_911 else 'Seek Medical Advice'}"
-    )
-    print("=" * 40 + "\n")
-
+    print("=" * 60 + "\n")
+    print("💡 If DeepProbLog is working correctly, the probability should")
+    print("   noticeably increase from Patient A -> Patient B -> Patient C.")
 
 if __name__ == "__main__":
     main()
