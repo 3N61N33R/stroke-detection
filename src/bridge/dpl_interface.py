@@ -3,6 +3,7 @@ DeepProbLog Engine Bridge
 =========================
 
 Neuro-symbolic inference interface for the Stroke Detection system.
+Handles neural inference, logical evaluation, and clinical risk categorization.
 """
 
 import os
@@ -22,18 +23,15 @@ from src.networks.facial_net import get_model
 class DPLWrapper(torch.nn.Module):
     """
     Wraps the CNN to convert logits to probabilities and strip the batch 
-    dimension so DeepProbLog can index the classes correctly via val[i].
+    dimension so DeepProbLog can index the classes correctly.
     """
     def __init__(self, base_model):
         super().__init__()
         self.base_model = base_model
 
     def forward(self, x):
-        # 1. Get raw logits from the CNN (shape: [1, 2])
         logits = self.base_model(x)
-        # 2. Convert logits to probabilities 
         probs = F.softmax(logits, dim=-1)
-        # 3. Strip the batch dimension to return a 1D tensor (shape: [2])
         return probs.squeeze(0)
 
 
@@ -48,10 +46,7 @@ class StrokeBridge:
         raw_cnn.load_state_dict(torch.load(model_path, map_location=self.device))
         raw_cnn.eval()
         
-        # FIX: Wrap the CNN so it outputs the exact 1D tensor DeepProbLog expects
         self.wrapped_cnn = DPLWrapper(raw_cnn).to(self.device)
-
-        # Register the wrapped model
         self.droop_net = Network(self.wrapped_cnn, "droop_classifier", batching=False)
 
         self.transform = transforms.Compose([
@@ -87,33 +82,81 @@ class StrokeBridge:
         }
         patient_model.add_tensor_source("live_camera", live_image_store)
 
+        # Updated to match the new, academically precise Prolog terms
         queries = [
-            Query(Term("arm_risk", Term("patient1"))),
-            Query(Term("speech_risk", Term("patient1"))),
+            Query(Term("arm_deficit", Term("patient1"))),
+            Query(Term("speech_deficit", Term("patient1"))),
             Query(Term("fast_positive", Term("patient1"))),
-            Query(Term("stroke_probability", Term("patient1")))
+            Query(Term("atypical_stroke", Term("patient1"))),
+            Query(Term("recurrence_boost", Term("patient1"))),
+            Query(Term("is_mimic", Term("patient1"))),
+            Query(Term("stroke", Term("patient1")))
         ]
         
-        answers = patient_model.solve(queries)
+        # Suppress PyTorch training warnings during inference
+        with torch.no_grad():
+            answers = patient_model.solve(queries)
         
         debug_results = {}
         for ans in answers:
             for term, prob in ans.result.items():
                 debug_results[str(term)] = float(prob)
 
-        print(f"\n   [Debug] Engine internal evaluation for this patient:")
-        for k, v in debug_results.items():
-            print(f"      -> {k}: {v*100:.2f}%")
+        # Extract probabilities
+        stroke_prob = debug_results.get("stroke(patient1)", 0.0)
+        fast_prob = debug_results.get("fast_positive(patient1)", 0.0)
+        atypical_prob = debug_results.get("atypical_stroke(patient1)", 0.0)
+        recurrence_prob = debug_results.get("recurrence_boost(patient1)", 0.0)
+        mimic_prob = debug_results.get("is_mimic(patient1)", 0.0)
 
-        stroke_prob = debug_results.get("stroke_probability(patient1)", 0.0)
+        # -------------------------------------------------------------------
+        # CLINICAL DECISION & UX RISK CATEGORIZATION
+        # -------------------------------------------------------------------
+        # Convert probabilistic outputs into boolean triggers for clinical logic
+        has_stroke = stroke_prob >= 0.50
+        is_fast_pos = fast_prob > 0.0
+        is_atypical = atypical_prob > 0.0
+        has_recurrence = recurrence_prob > 0.0
+        is_mimic = mimic_prob > 0.0
 
-        if stroke_prob >= 0.85: category = "critical"
-        elif stroke_prob >= 0.50: category = "high"
-        elif stroke_prob >= 0.25: category = "moderate"
-        else: category = "low"
+        # Apply the exact clinical rules previously held in the Prolog file
+        urgent_911 = (has_stroke and is_fast_pos and not is_mimic) or \
+                     (has_stroke and has_recurrence and not is_mimic)
+                     
+        seek_urgent = (has_stroke and not urgent_911 and not is_mimic) or \
+                      (is_atypical and not is_mimic) or \
+                      (has_recurrence and not urgent_911 and not is_mimic)
+                      
+        consider_eval = (is_atypical and is_mimic) or \
+                        (is_mimic and not has_stroke and not is_atypical)
+
+        if urgent_911:
+            category = "critical"
+            decision = "Urgent: Call 911"
+        elif seek_urgent:
+            category = "high"
+            decision = "Seek Urgent Care"
+        elif consider_eval:
+            category = "moderate"
+            decision = "Consider Medical Evaluation"
+        else:
+            category = "low"
+            decision = "Monitor Routine Symptoms"
+
+        # Package XAI contributions for the frontend to explain the math
+        contributions = {
+            "arm_deficit": debug_results.get("arm_deficit(patient1)", 0.0),
+            "speech_deficit": debug_results.get("speech_deficit(patient1)", 0.0),
+            "fast_positive": fast_prob,
+            "atypical_stroke": atypical_prob,
+            "recurrence_boost": recurrence_prob,
+            "is_mimic": mimic_prob
+        }
 
         return {
             "stroke_prob": stroke_prob,
-            "risk_category": category
+            "risk_category": category,
+            "clinical_decision": decision,
+            "contributions": contributions
         }
     

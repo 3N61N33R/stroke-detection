@@ -1,15 +1,17 @@
 % ==============================================================================
-% STROKE DETECTION – LOGIC LAYER (BE-FAST)
+% Module: Neuro-Symbolic Stroke Detection Logic (BE-FAST)
+% Description:
+%   This DeepProbLog program serves as the inferential logic layer for stroke
+%   assessment. It integrates continuous probabilistic outputs from a visual 
+%   Convolutional Neural Network (CNN) with discrete, symbolically encoded 
+%   clinical guidelines (BE-FAST criteria). It evaluates patient symptoms 
+%   and visual data to compute the overarching probability of a stroke event.
 % ==============================================================================
-% DeepProbLog program combining neural facial analysis with symbolic
-% clinical rules for stroke risk assessment.
-% ==============================================================================
-
 
 % ------------------------------------------------------------------------------
 % 0. BASE INITIALIZATION
 % ------------------------------------------------------------------------------
-% Ensures predicates exist even when symptoms are absent.
+% Ensures predicates exist in the graph even when symptoms are absent.
 
 gender(null_patient, null).
 speech_issue(null_patient).
@@ -25,6 +27,9 @@ check_face(null_patient, null).
 % ------------------------------------------------------------------------------
 % 1. NEURAL INTERFACE (Facial Droop)
 % ------------------------------------------------------------------------------
+% The NeutralImg serves as a baseline reference. By comparing the resting state 
+% to the active state (SmileImg), the CNN isolates acute facial droop from 
+% naturally occurring baseline asymmetry.
 
 nn(droop_classifier, [Image], State, [normal, droop]) ::
     check_face(Image, State).
@@ -46,57 +51,57 @@ facial_droop_detected(Person, NeutralImg, SmileImg) :-
 % 2. SYMPTOM WEIGHTING (FAST CORE)
 % ------------------------------------------------------------------------------
 
-0.56::speech_risk(P) :- gender(P, female), speech_issue(P).
-0.42::speech_risk(P) :- gender(P, male),   speech_issue(P).
+0.56::speech_deficit(P) :- gender(P, female), speech_issue(P).
+0.42::speech_deficit(P) :- gender(P, male),   speech_issue(P).
 
-0.89::arm_risk(P) :- arm_weakness(P).
+0.89::arm_deficit(P) :- arm_weakness(P).
 
 fast_positive(P) :-
     facial_droop_detected(P, _, _).
 
 fast_positive(P) :-
-    speech_risk(P).
+    speech_deficit(P).
 
 fast_positive(P) :-
-    arm_risk(P).
+    arm_deficit(P).
 
 
 % ------------------------------------------------------------------------------
-% 3. STROKE PROBABILITY
+% 3. STROKE DETECTION
 % ------------------------------------------------------------------------------
 
 % Neural + reported symptoms
-0.73::stroke_probability(P) :-
+0.73::stroke(P) :-
     facial_droop_detected(P, _, _),
-    (speech_risk(P) ; arm_risk(P)).
+    (speech_deficit(P) ; arm_deficit(P)).
 
 % Reported symptoms only
-0.56::stroke_probability(P) :-
+0.56::stroke(P) :-
     \+ facial_droop_detected(P, _, _),
-    (speech_risk(P) ; arm_risk(P)).
+    (speech_deficit(P) ; arm_deficit(P)).
 
 % Neural signal only
-0.60::stroke_probability(P) :-
+0.60::stroke(P) :-
     facial_droop_detected(P, _, _),
-    \+ speech_risk(P),
-    \+ arm_risk(P).
+    \+ speech_deficit(P),
+    \+ arm_deficit(P).
 
 
 % ------------------------------------------------------------------------------
-% 4. BE (Balance & Eyes)
+% 4. BE (Balance & Eyes) - ATYPICAL PRESENTATIONS
 % ------------------------------------------------------------------------------
 
-0.20::hidden_stroke_risk(P) :-
-    \+ stroke_probability(P),
+0.20::atypical_stroke(P) :-
+    \+ stroke(P),
     dizziness(P).
 
-0.527::hidden_stroke_risk(P) :-
-    \+ stroke_probability(P),
+0.527::atypical_stroke(P) :-
+    \+ stroke(P),
     vision_change(P).
 
 
 % ------------------------------------------------------------------------------
-% 5. RISK MODIFIERS
+% 5. RECURRENCE & MIMIC MODIFIERS
 % ------------------------------------------------------------------------------
 
 0.10::recurrence_boost(P) :-
@@ -105,63 +110,3 @@ fast_positive(P) :-
 0.14::is_mimic(P) :-
     history_prior_stroke(P),
     \+ new_symptom(P).
-
-
-% ------------------------------------------------------------------------------
-% 6. CLINICAL DECISION
-% ------------------------------------------------------------------------------
-
-urgent_call_911(P) :-
-    stroke_probability(P),
-    fast_positive(P),
-    \+ is_mimic(P).
-
-urgent_call_911(P) :-
-    stroke_probability(P),
-    recurrence_boost(P),
-    \+ is_mimic(P).
-
-seek_urgent_care(P) :-
-    stroke_probability(P),
-    \+ urgent_call_911(P),
-    \+ is_mimic(P).
-
-seek_urgent_care(P) :-
-    hidden_stroke_risk(P),
-    \+ is_mimic(P).
-
-seek_urgent_care(P) :-
-    recurrence_boost(P),
-    \+ urgent_call_911(P),
-    \+ is_mimic(P).
-
-consider_evaluation(P) :-
-    hidden_stroke_risk(P),
-    is_mimic(P).
-
-consider_evaluation(P) :-
-    is_mimic(P),
-    \+ stroke_probability(P),
-    \+ hidden_stroke_risk(P).
-
-
-% ------------------------------------------------------------------------------
-% 7. UX RISK CATEGORIES
-% ------------------------------------------------------------------------------
-
-risk_category(critical, P) :-
-    urgent_call_911(P).
-
-risk_category(high, P) :-
-    seek_urgent_care(P),
-    \+ urgent_call_911(P).
-
-risk_category(moderate, P) :-
-    consider_evaluation(P),
-    \+ seek_urgent_care(P),
-    \+ urgent_call_911(P).
-
-risk_category(low, P) :-
-    \+ urgent_call_911(P),
-    \+ seek_urgent_care(P),
-    \+ consider_evaluation(P).
