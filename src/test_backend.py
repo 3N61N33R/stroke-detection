@@ -82,14 +82,23 @@ def main():
         {
             "id": "Patient C (Visual + Speech + Arm Weakness)",
             "data": {'gender': 'male', 'speech': True, 'arm': True, 'vision': False}
+        },
+        {
+            "id": "Patient D (Atypical: Dizziness + Vision Change)",
+            "data": {'gender': 'female', 'vision': True, 'dizzy': True}
+        },
+        {
+            "id": "Patient E (Recurrence Risk: Recent TIA)",
+            "data": {'gender': 'male', 'speech': True, 'history_recent_tia': True}
+        },
+        {
+            "id": "Patient F (Stroke Mimic: Prior Stroke + No New Symptoms)",
+            "data": {'gender': 'female', 'dizzy': True, 'history_prior_stroke': True}
         }
     ]
 
     # 4. RUN INFERENCE FOR EACH PATIENT
     print("\n🧠 Executing varying symptom tests...\n")
-    
-    print("=" * 60)
-    print(f"{'PATIENT PROFILE':<40} | {'STROKE PROB':<15}")
     print("=" * 60)
 
     for case in test_cases:
@@ -101,14 +110,36 @@ def main():
             )
             
             prob = results.get("stroke_prob", 0.0) * 100
-            print(f"{case['id']:<40} | {prob:>6.2f}%")
+            category = results.get("risk_category", "N/A").upper()
+            decision = results.get("clinical_decision", "N/A")
+            contribs = results.get("contributions", {})
+            
+            print(f"👤 PROFILE   : {case['id']}")
+            print(f"   PROBABILITY: {prob:.2f}%")
+            print(f"   CATEGORY   : {category}")
+            print(f"   DECISION   : {decision}")
+            print(f"   XAI RULES TRIGGERED:")
+            
+            # Print only active contributions
+            active_rules = False
+            for k, v in contribs.items():
+                if v > 0.0:
+                    active_rules = True
+                    clean_name = k.replace('_', ' ').title()
+                    print(f"      -> {clean_name}: {v*100:.2f}%")
+            
+            if not active_rules:
+                print("      -> None")
+                
+            print("-" * 60)
             
         except Exception as e:
             print(f"❌ Inference failed for {case['id']}: {e}")
+            print("-" * 60)
 
-    print("=" * 60 + "\n")
-    print("💡 If DeepProbLog is working correctly, the probability should")
-    print("   noticeably increase from Patient A -> Patient B -> Patient C.")
+    print("\n💡 If DeepProbLog is working correctly, probabilities and decisions")
+    print("   will shift dynamically based on the XAI logic pathways.")
 
 if __name__ == "__main__":
     main()
+    
