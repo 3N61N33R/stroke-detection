@@ -31,20 +31,19 @@ check_face(null_patient, null).
 % to the active state (SmileImg), the CNN isolates acute facial droop from 
 % naturally occurring baseline asymmetry.
 
-nn(droop_classifier, [Image], State, [normal, droop]) ::
-    check_face(Image, State).
+nn(droop_classifier, [Image], State, [normal, droop])::check_face(Image, State).
 
 facial_droop_detected(Person, NeutralImg, SmileImg) :-
-    belongs_to(NeutralImg, Person),
-    belongs_to(SmileImg, Person),
-    check_face(NeutralImg, normal),
-    check_face(SmileImg, droop).
+	belongs_to(NeutralImg, Person),
+	belongs_to(SmileImg, Person),
+	check_face(NeutralImg, normal),
+	check_face(SmileImg, droop).
 
 facial_droop_detected(Person, NeutralImg, SmileImg) :-
-    belongs_to(NeutralImg, Person),
-    belongs_to(SmileImg, Person),
-    check_face(NeutralImg, droop),
-    check_face(SmileImg, droop).
+	belongs_to(NeutralImg, Person),
+	belongs_to(SmileImg, Person),
+	check_face(NeutralImg, droop),
+	check_face(SmileImg, droop).
 
 
 % ------------------------------------------------------------------------------
@@ -57,13 +56,13 @@ facial_droop_detected(Person, NeutralImg, SmileImg) :-
 0.89::arm_deficit(P) :- arm_weakness(P).
 
 fast_positive(P) :-
-    facial_droop_detected(P, _, _).
+	facial_droop_detected(P, _, _).
 
 fast_positive(P) :-
-    speech_deficit(P).
+	speech_deficit(P).
 
 fast_positive(P) :-
-    arm_deficit(P).
+	arm_deficit(P).
 
 
 % ------------------------------------------------------------------------------
@@ -72,8 +71,7 @@ fast_positive(P) :-
 
 % Neural + reported symptoms
 0.73::stroke(P) :-
-    facial_droop_detected(P, _, _),
-    (speech_deficit(P) ; arm_deficit(P)).
+    facial_droop_detected(P, _, _), (speech_deficit(P);arm_deficit(P)).
 
 % Reported symptoms only
 0.56::stroke(P) :-
@@ -82,9 +80,7 @@ fast_positive(P) :-
 
 % Neural signal only
 0.60::stroke(P) :-
-    facial_droop_detected(P, _, _),
-    \+ speech_deficit(P),
-    \+ arm_deficit(P).
+    facial_droop_detected(P, _, _), \+speech_deficit(P), \+arm_deficit(P).
 
 
 % ------------------------------------------------------------------------------
@@ -108,5 +104,4 @@ fast_positive(P) :-
     history_recent_tia(P).
 
 0.14::is_mimic(P) :-
-    history_prior_stroke(P),
-    \+ new_symptom(P).
+    history_prior_stroke(P), \+new_symptom(P).

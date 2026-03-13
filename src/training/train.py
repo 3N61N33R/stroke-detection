@@ -16,7 +16,7 @@ Usage:
 
 import os
 import sys
-import kagglehub 
+import kagglehub
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -29,7 +29,7 @@ from torchvision import datasets, transforms
 # Calculate project root to allow importing modules from 'src'
 # Logic: Current File -> src/training -> src -> Project Root
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
-ROOT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, '../../'))
+ROOT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "../../"))
 
 if ROOT_DIR not in sys.path:
     sys.path.append(ROOT_DIR)
@@ -50,29 +50,31 @@ DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 MODEL_SAVE_PATH = os.path.join(ROOT_DIR, "models", "stroke_mvp.pth")
 DATASET_HANDLE = "abdussalamelhanashy/annotated-facial-images-for-stroke-classification"
 
+
 # ==============================================================================
 # HELPER FUNCTIONS
 # ==============================================================================
 def find_dataset_root(start_path):
     """
-    Recursively searches for the directory containing class subfolders 
+    Recursively searches for the directory containing class subfolders
     ('Stroke' and 'NonStroke') required by ImageFolder.
     """
     if not os.path.exists(start_path):
         return None
-        
+
     for root, dirs, files in os.walk(start_path):
         # Case-insensitive check might be safer, but strict for now matches dataset
         if "Stroke" in dirs and "NonStroke" in dirs:
             return root
     return None
 
+
 def train_model():
     """
     Main execution routine: Download -> Load -> Train -> Save.
     """
     print(f"🚀 Initializing Training Pipeline on {DEVICE}...")
-    
+
     # ---------------------------------------------------------
     # 1. DOWNLOAD DATASET
     # ---------------------------------------------------------
@@ -91,19 +93,23 @@ def train_model():
     # ---------------------------------------------------------
     dataset_dir = find_dataset_root(path)
     if not dataset_dir:
-        raise FileNotFoundError("Could not find 'Stroke' and 'NonStroke' folders in the downloaded dataset.")
-    
+        raise FileNotFoundError(
+            "Could not find 'Stroke' and 'NonStroke' folders in the downloaded dataset."
+        )
+
     print(f"✅ Valid dataset root identified: {dataset_dir}")
 
     # ---------------------------------------------------------
     # 3. PREPROCESSING & SPLITTING
     # ---------------------------------------------------------
-    data_transforms = transforms.Compose([
-        transforms.Resize((IMG_SIZE, IMG_SIZE)),
-        transforms.ToTensor(), 
-        # Optional: Add Normalization here if needed for ResNet
-        # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
+    data_transforms = transforms.Compose(
+        [
+            transforms.Resize((IMG_SIZE, IMG_SIZE)),
+            transforms.ToTensor(),
+            # Optional: Add Normalization here if needed for ResNet
+            # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ]
+    )
 
     full_dataset = datasets.ImageFolder(dataset_dir, transform=data_transforms)
     print(f"ℹ️  Classes Detected: {full_dataset.classes}")
@@ -115,8 +121,10 @@ def train_model():
 
     train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
     val_loader = DataLoader(val_data, batch_size=BATCH_SIZE, shuffle=False)
-    
-    print(f"ℹ️  Training Samples: {len(train_data)} | Validation Samples: {len(val_data)}")
+
+    print(
+        f"ℹ️  Training Samples: {len(train_data)} | Validation Samples: {len(val_data)}"
+    )
 
     # ---------------------------------------------------------
     # 4. INITIALIZE MODEL
@@ -133,17 +141,17 @@ def train_model():
         running_loss = 0.0
         correct = 0
         total = 0
-        
+
         # --- TRAINING PHASE ---
         for inputs, labels in train_loader:
             inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
-            
+
             optimizer.zero_grad()
             outputs = model(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
-            
+
             running_loss += loss.item()
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
@@ -154,13 +162,13 @@ def train_model():
         val_loss = 0.0
         val_correct = 0
         val_total = 0
-        
+
         with torch.no_grad():
             for inputs, labels in val_loader:
                 inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
                 outputs = model(inputs)
                 loss = criterion(outputs, labels)
-                
+
                 val_loss += loss.item()
                 _, predicted = torch.max(outputs.data, 1)
                 val_total += labels.size(0)
@@ -172,9 +180,11 @@ def train_model():
         avg_train_loss = running_loss / len(train_loader)
         avg_val_loss = val_loss / len(val_loader)
 
-        print(f"Epoch {epoch+1}/{EPOCHS} | "
-              f"Train Loss: {avg_train_loss:.4f} ({train_acc:.1f}%) | "
-              f"Val Loss: {avg_val_loss:.4f} ({val_acc:.1f}%)")
+        print(
+            f"Epoch {epoch+1}/{EPOCHS} | "
+            f"Train Loss: {avg_train_loss:.4f} ({train_acc:.1f}%) | "
+            f"Val Loss: {avg_val_loss:.4f} ({val_acc:.1f}%)"
+        )
 
     # ---------------------------------------------------------
     # 6. SAVE ARTIFACTS
@@ -183,6 +193,6 @@ def train_model():
     torch.save(model.state_dict(), MODEL_SAVE_PATH)
     print(f"🎉 Model saved successfully to: {MODEL_SAVE_PATH}")
 
+
 if __name__ == "__main__":
     train_model()
-    
