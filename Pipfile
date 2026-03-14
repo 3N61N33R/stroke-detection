@@ -11,6 +11,7 @@ pyswip = "*"
 deepproblog = "*"
 matplotlib = "*"
 kagglehub = "*"
+streamlit = "*"
 
 [dev-packages]
 ipykernel = "*"
