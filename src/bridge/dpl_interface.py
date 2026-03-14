@@ -1,269 +1,179 @@
 """
-DeepProbLog Interface Bridge
-============================
+DeepProbLog Engine Bridge
+=========================
 
-This module serves as the neuro-symbolic bridge for the Stroke Detection System.
-It integrates the output of the PyTorch facial analysis model (Neural) with 
-the DeepProbLog logic engine (Symbolic).
-
-Key Features:
-- Loads standard SWI-Prolog libraries across Linux/Mac/Windows.
-- Injects neural probabilities into a temporary Prolog logic program.
-- Executes BE-FAST stroke risk queries using the ExactEngine.
-
-Dependencies:
-- torch, torchvision
-- deepproblog
-- pyswip (via internal ctypes loading)
+Neuro-symbolic inference interface for the Stroke Detection system.
+Handles neural inference, logical evaluation, and clinical risk categorization.
 """
 
-import ctypes
-import os
-import sys
-import platform
-import tempfile
 import torch
+import torch.nn.functional as F
 from torchvision import transforms
 
-# DeepProbLog & Logic Imports
 from deepproblog.model import Model
+from deepproblog.network import Network
 from deepproblog.engines import ExactEngine
 from deepproblog.query import Query
-from problog.logic import Term, Constant
+from problog.logic import Term
 
-# Internal Imports
-from src.networks.facial_net import get_model
+from src.networks import facial_net
 
-# ==============================================================================
-# HELPER: CROSS-PLATFORM SWI-PROLOG LOADER
-# ==============================================================================
-def load_swi_prolog():
+
+class DPLWrapper(torch.nn.Module):
     """
-    Attempts to manually load the SWI-Prolog shared library.
-    This is often required for DeepProbLog to interface with the system-level
-    Prolog installation on Linux, Mac, and Windows.
+    Wraps the CNN to convert logits to probabilities and strip the batch
+    dimension so DeepProbLog can index the classes correctly.
     """
-    system = platform.system()
-    lib_names = []
-    
-    if system == "Linux":
-        lib_names = [
-            '/usr/lib/swi-prolog/lib/x86_64-linux/libswipl.so', 
-            'libswipl.so'
-        ]
-    elif system == "Darwin": # macOS
-        lib_names = [
-            '/Applications/SWI-Prolog.app/Contents/Frameworks/libswipl.dylib',
-            '/opt/homebrew/lib/libswipl.dylib',
-            'libswipl.dylib'
-        ]
-    elif system == "Windows":
-        lib_names = [
-            r'C:\Program Files\swipl\bin\libswipl.dll',
-            'libswipl.dll'
-        ]
 
-    for lib_path in lib_names:
-        try:
-            if os.path.exists(lib_path) or system == "Windows":
-                # On Windows, ctypes.cdll.LoadLibrary is often preferred
-                ctypes.CDLL(lib_path, mode=ctypes.RTLD_GLOBAL if system != "Windows" else 0)
-                
-                # Update environment variables for subprocesses if needed
-                if system == "Linux" and os.path.exists(lib_path):
-                    os.environ['LD_LIBRARY_PATH'] = f"{os.path.dirname(lib_path)}:{os.environ.get('LD_LIBRARY_PATH', '')}"
-                
-                print(f"✅ System: Linked to SWI-Prolog library ({lib_path}).")
-                return
-        except Exception:
-            continue
-            
-    # If we reach here, we rely on the system's default PATH/LD_LIBRARY_PATH
-    print("ℹ️ System: Relying on default system paths for SWI-Prolog.")
+    def __init__(self, base_model):
+        super().__init__()
+        self.base_model = base_model
 
-# Execute loader at module level
-load_swi_prolog()
+    def forward(self, x):
+        logits = self.base_model(x)
+
+        # 2. Convert logits to probabilities
+        probs = F.softmax(logits, dim=-1)
+        return probs.squeeze(0)
 
 
-# ==============================================================================
-# MAIN BRIDGE CLASS
-# ==============================================================================
 class StrokeBridge:
-    """
-    Acts as the Neuro-Symbolic interface between the PyTorch Vision Model
-    and the DeepProbLog Logic Engine.
-    """
-    def __init__(self, model_path, logic_path):
-        self.device = torch.device("cpu")
-        
-        # 1. Load Vision Model (PyTorch)
-        self.cnn = get_model().to(self.device)
-        try:
-            self.cnn.load_state_dict(torch.load(model_path, map_location=self.device))
-            self.cnn.eval()
-            print(f"✅ Bridge: Vision Model loaded successfully.")
-        except FileNotFoundError:
-            print(f"⚠️ Bridge Warning: Model file not found at {model_path}. Inference will use random weights.")
+    def __init__(self, model_path: str, logic_path: str):
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # 2. Define Image Transformations
-        self.transform = transforms.Compose([
-            transforms.Resize((224, 224)),
-            transforms.ToTensor()
-        ])
+        with open(logic_path, "r") as f:
+            self.base_logic = f.read()
 
-        # 3. Load Logic Template
-        # We read the logic rules into memory to inject patient data dynamically later.
-        if not os.path.exists(logic_path):
-            raise FileNotFoundError(f"Logic file not found: {logic_path}")
-            
-        with open(logic_path, 'r') as f:
-            self.logic_template = f.read()
+        raw_cnn = facial_net.get_model()
+        raw_cnn.load_state_dict(torch.load(model_path, map_location=self.device))
+        raw_cnn.eval()
 
-        print("✅ Bridge: DeepProbLog Interface ready.")
+        # FIX: Wrap the CNN so it outputs the exact 1D tensor DeepProbLog expects
+        self.wrapped_cnn = DPLWrapper(raw_cnn).to(self.device)
+        self.droop_net = Network(self.wrapped_cnn, "droop_classifier", batching=False)
 
-    def get_face_probabilities(self, img):
-        """
-        Runs the CNN on a single image and returns raw probabilities for [Normal, Droop].
-        """
-        if img is None: return 0.0, 0.0
-        
-        img_t = self.transform(img).unsqueeze(0).to(self.device)
+        self.transform = transforms.Compose(
+            [
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+            ]
+        )
+
+    def analyze_patient(self, neutral_img, smile_img, patient_data: dict) -> dict:
+        neutral_tensor = self.transform(neutral_img).unsqueeze(0).to(self.device)
+        smile_tensor = self.transform(smile_img).unsqueeze(0).to(self.device)
+
+        dynamic_logic = self.base_logic + "\n\n% --- DYNAMIC PATIENT FACTS ---\n"
+
+        dynamic_logic += "belongs_to(tensor(live_camera(neutral_img)), patient1).\n"
+        dynamic_logic += "belongs_to(tensor(live_camera(smile_img)), patient1).\n"
+
+        gender = patient_data.get("gender", "male").lower()
+        dynamic_logic += f"gender(patient1, {gender}).\n"
+
+        if patient_data.get("speech"):
+            dynamic_logic += "speech_issue(patient1).\n"
+        if patient_data.get("arm"):
+            dynamic_logic += "arm_weakness(patient1).\n"
+        if patient_data.get("vision"):
+            dynamic_logic += "vision_change(patient1).\n"
+        if patient_data.get("dizzy"):
+            dynamic_logic += "dizziness(patient1).\n"
+        if patient_data.get("history_recent_tia"):
+            dynamic_logic += "history_recent_tia(patient1).\n"
+        if patient_data.get("history_prior_stroke"):
+            dynamic_logic += "history_prior_stroke(patient1).\n"
+
+        patient_model = Model(dynamic_logic, [self.droop_net], load=False)
+        patient_model.set_engine(ExactEngine(patient_model))
+
+        live_image_store = {
+            (Term("neutral_img"),): neutral_tensor,
+            (Term("smile_img"),): smile_tensor,
+        }
+        patient_model.add_tensor_source("live_camera", live_image_store)
+
+        # Updated to match the new, academically precise Prolog terms
+        queries = [
+            Query(Term("arm_deficit", Term("patient1"))),
+            Query(Term("speech_deficit", Term("patient1"))),
+            Query(Term("fast_positive", Term("patient1"))),
+            Query(Term("atypical_stroke", Term("patient1"))),
+            Query(Term("recurrence_boost", Term("patient1"))),
+            Query(Term("is_mimic", Term("patient1"))),
+            Query(Term("stroke", Term("patient1"))),
+        ]
+
+        # Suppress PyTorch training warnings during inference
         with torch.no_grad():
-            output = self.cnn(img_t)
-        # Assuming output is Softmaxed or raw logits; DeepProbLog expects probabilities.
-        # If model outputs logits, apply F.softmax here.
-        return output[0][0].item(), output[0][1].item()
+            answers = patient_model.solve(queries)
 
-    def _get_score(self, answers):
-        """
-        Helper to safely extract the probability score from DeepProbLog results.
-        Handles cases where the engine returns a logical proof (Dict) instead of a float.
-        """
-        if not answers:
-            return 0.0
-        
-        val = answers[0].result
-        
-        # Case A: Standard Probability (Float)
-        if isinstance(val, (int, float)):
-            return float(val)
-        
-        # Case B: Logical Proof (Dict) -> Implies Deterministic True (1.0)
-        if isinstance(val, dict):
-            return 1.0
-            
-        return 0.0
+        debug_results = {}
+        for ans in answers:
+            for term, prob in ans.result.items():
+                debug_results[str(term)] = float(prob)
 
-    def analyze_patient(self, neutral_img, smile_img, user_data):
-        """
-        Performs the full Neuro-Symbolic inference:
-        1. Visual Analysis (Neural Network) -> Probabilistic Facts
-        2. Symptom Processing (User Data) -> Deterministic Facts
-        3. Logic Reasoning (DeepProbLog) -> Stroke Risk Score & Decisions
-        """
-        
-        # ---------------------------------------------------------
-        # A. Neural Phase: Extract visual evidence
-        # ---------------------------------------------------------
-        n_normal, n_droop = self.get_face_probabilities(neutral_img)
-        s_normal, s_droop = self.get_face_probabilities(smile_img)
-        
-        # ---------------------------------------------------------
-        # B. Symbolic Phase: Construct the Knowledge Base
-        # ---------------------------------------------------------
-        patient_id = "patient_x"
-        facts = []
+        # Extract probabilities
+        stroke_prob = debug_results.get("stroke(patient1)", 0.0)
+        fast_prob = debug_results.get("fast_positive(patient1)", 0.0)
+        atypical_prob = debug_results.get("atypical_stroke(patient1)", 0.0)
+        recurrence_prob = debug_results.get("recurrence_boost(patient1)", 0.0)
+        mimic_prob = debug_results.get("is_mimic(patient1)", 0.0)
 
-        # 1. Inject Neural Probabilities (The "Neuro" part)
-        facts.append(f"{n_normal:.4f}::check_face(img_neutral, normal).")
-        facts.append(f"{n_droop:.4f}::check_face(img_neutral, droop).")
-        facts.append(f"{s_normal:.4f}::check_face(img_smile, normal).")
-        facts.append(f"{s_droop:.4f}::check_face(img_smile, droop).")
+        # -------------------------------------------------------------------
+        # CLINICAL DECISION & UX RISK CATEGORIZATION
+        # -------------------------------------------------------------------
+        # Convert probabilistic outputs into boolean triggers for clinical logic
+        has_stroke = stroke_prob >= 0.50
+        is_fast_pos = fast_prob > 0.0
+        is_atypical = atypical_prob > 0.0
+        has_recurrence = recurrence_prob > 0.0
+        is_mimic = mimic_prob > 0.0
 
-        # 2. Inject Patient Demographics & Symptoms (The "Symbolic" part)
-        if user_data.get('gender') == 'Female': facts.append(f"gender({patient_id}, female).")
-        else: facts.append(f"gender({patient_id}, male).")
+        # Apply the exact clinical rules previously held in the Prolog file
+        urgent_911 = (has_stroke and is_fast_pos and not is_mimic) or (
+            has_stroke and has_recurrence and not is_mimic
+        )
 
-        if user_data.get('speech'): facts.append(f"speech_issue({patient_id}).")
-        if user_data.get('arm'):    facts.append(f"arm_weakness({patient_id}).")
-        if user_data.get('vision'): facts.append(f"vision_change({patient_id}).")
-        if user_data.get('dizzy'):  facts.append(f"dizziness({patient_id}).")
-        
-        if user_data.get('history_tia'): facts.append(f"history_recent_tia({patient_id}).")
-        
-        # BE-FAST Logic for Mimics: Prior Stroke without NEW symptoms
-        if user_data.get('prior_stroke'):
-            facts.append(f"history_prior_stroke({patient_id}).")
-            has_new = (user_data.get('speech') or user_data.get('arm') or 
-                       user_data.get('vision') or user_data.get('dizzy'))
-            if has_new:
-                facts.append(f"new_symptom({patient_id}).")
+        seek_urgent = (
+            (has_stroke and not urgent_911 and not is_mimic)
+            or (is_atypical and not is_mimic)
+            or (has_recurrence and not urgent_911 and not is_mimic)
+        )
 
-        # 3. Bridge the Neural Facts to the Patient
-        facts.append(f"facial_droop_detected(img_neutral, img_smile).")
+        consider_eval = (is_atypical and is_mimic) or (
+            is_mimic and not has_stroke and not is_atypical
+        )
 
-        # ---------------------------------------------------------
-        # C. Inference Phase: Run the Logic Program
-        # ---------------------------------------------------------
-        # Merge the static Logic Template with the dynamic Facts
-        full_code = self.logic_template + "\n" + "\n".join(facts)
-        
-        results = {}
-        # Create a temporary file for DeepProbLog to read
-        fd, temp_path = tempfile.mkstemp(suffix=".pl", text=True)
-        
-        try:
-            with os.fdopen(fd, 'w') as tmp:
-                tmp.write(full_code)
-            
-            # Initialize Engine for this specific patient
-            model = Model(temp_path, [])
-            engine = ExactEngine(model)
-            model.set_engine(engine)
+        if urgent_911:
+            category = "critical"
+            decision = "Urgent: Call 911"
+        elif seek_urgent:
+            category = "high"
+            decision = "Seek Urgent Care"
+        elif consider_eval:
+            category = "moderate"
+            decision = "Consider Medical Evaluation"
+        else:
+            category = "low"
+            decision = "Monitor Routine Symptoms"
 
-            # Define Queries
-            pid_term = Constant(patient_id)
-            
-            # Query 1: Probability of Stroke
-            q1 = Query(Term('stroke_probability', pid_term))
-            ans1 = model.solve([q1])
-            results['stroke_prob'] = self._get_score(ans1)
+        # Package XAI contributions for the frontend to explain the math
+        contributions = {
+            "arm_deficit": debug_results.get("arm_deficit(patient1)", 0.0),
+            "speech_deficit": debug_results.get("speech_deficit(patient1)", 0.0),
+            "fast_positive": fast_prob,
+            "atypical_stroke": atypical_prob,
+            "recurrence_boost": recurrence_prob,
+            "is_mimic": mimic_prob,
+        }
 
-            # Query 2: Decision - Call 911?
-            q2 = Query(Term('urgent_call_911', pid_term))
-            ans2 = model.solve([q2])
-            results['call_911'] = self._get_score(ans2) > 0.0
+        return {
+            "stroke_prob": stroke_prob,
+            "risk_category": category,
+            "clinical_decision": decision,
+            "contributions": contributions,
+        }
 
-            # Query 3: Decision - Seek Urgent Care?
-            q3 = Query(Term('seek_urgent_care', pid_term))
-            ans3 = model.solve([q3])
-            results['urgent_care'] = self._get_score(ans3) > 0.0
 
-            # Query 4: Determine Risk Category (Critical/High/Moderate/Low)
-            categories = ['critical', 'high', 'moderate', 'low']
-            best_cat = 'low'
-            best_score = -1.0
-            
-            for cat in categories:
-                q_cat = Query(Term('risk_category', Constant(cat), pid_term))
-                ans_cat = model.solve([q_cat])
-                score = self._get_score(ans_cat)
-                
-                if score > best_score:
-                    best_score = score
-                    best_cat = cat
-            
-            results['risk_category'] = best_cat
-
-        except Exception as e:
-            print(f"❌ Logic Inference Failed: {e}")
-            import traceback
-            traceback.print_exc()
-            results = {'stroke_prob': 0.0, 'risk_category': 'error'}
-        finally:
-            # Cleanup temporary logic file
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
-
-        return results
-    
+# not have defined in the prolog file
