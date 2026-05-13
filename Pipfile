@@ -1,0 +1,21 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+pandas = "*"
+numpy = "<2.0.0"
+pytest = "*"
+pyswip = "*"
+deepproblog = "*"
+matplotlib = "*"
+kagglehub = "*"
+streamlit = "*"
+
+[dev-packages]
+ipykernel = "*"
+
+[requires]
+python_version = "3.12"
+python_full_version = "3.12.0"
