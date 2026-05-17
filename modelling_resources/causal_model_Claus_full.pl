@@ -1,0 +1,86 @@
+0.002 :: stroke. 
+0.078 :: weakness.
+0.063 :: sensory.
+0.047 :: visual. 
+0.005 :: facial_palsy.
+0.005 :: speech.
+
+fast :- weakness.
+fast :- facial_palsy.
+fast :- speech.
+e_fast :- fast.
+e_fast :- sensory.
+e_fast :- visual. 
+
+
+(14/900)::c_1; (22/900)::c_2; (17/900)::c_3; (11/900)::c_4; (27/900)::c_5; (2/900)::c_6; (111/900)::c_7; (4/900)::c_8; (13/900)::c_9; (3/900)::c_10; (8/900)::c_11; (10/900)::c_12; (4/900)::c_13; (118/900)::c_14; (6/900)::c_15; (150/900)::c_16; (28/900)::c_17; (3/900)::c_18; (16/900)::c_19; (5/900)::c_20; (4/900)::c_21; (74/900)::c_22; (2/900)::c_23; (5/900)::c_24; (80/900)::c_25; (54/900)::c_26
+:- stroke.
+
+visual :- c_1.
+speech :- c_1.
+sensory :- c_1.
+weakness :- c_1.
+facial_palsy :- c_1.
+speech :- c_2.
+sensory :- c_2.
+weakness :- c_2.
+speech :- c_3.
+sensory :- c_3.
+weakness :- c_3.
+facial_palsy :- c_3.
+visual :- c_4.
+speech :- c_4.
+speech :- c_5.
+facial_palsy :- c_5.
+speech :- c_6.
+sensory :- c_6.
+facial_palsy :- c_6.
+visual :- c_7.
+visual :- c_8.
+sensory :- c_8.
+speech :- c_9.
+sensory :- c_9.
+sensory :- c_10.
+speech :- c_10.
+weakness :- c_10.
+facial_palsy :- c_10.
+visual :- c_11.
+speech :- c_11.
+weakness :- c_11.
+facial_palsy :- c_11.
+sensory :- c_12.
+weakness :- c_12.
+facial_palsy :- c_12.
+visual :- c_13.
+speech :- c_13.
+sensory :- c_13.
+weakness :- c_13.
+weakness :- c_14.
+facial_palsy :- c_15.
+speech :- c_16.
+sensory :- c_17.
+visual :- c_18.
+sensory :- c_18.
+weakness :- c_18.
+facial_palsy :- c_18.
+weakness :- c_19.
+facial_palsy :- c_19.
+visual :- c_20.
+speech :- c_20.
+weakness :- c_20.
+visual :- c_21.
+sensory :- c_21.
+weakness :- c_21.
+speech :- c_22.
+weakness :- c_22.
+facial_palsy :- c_22.
+visual :- c_23.
+sensory :- c_23.
+speech :- c_23.
+visual :- c_24.
+weakness :- c_24.
+speech :- c_25.
+weakness :- c_25.
+sensory :- c_26.
+weakness :- c_26.
+

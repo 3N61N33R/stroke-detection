@@ -1,0 +1,22 @@
+0.002 :: stroke. 
+0.078 :: weakness.
+0.063 :: sensory.
+0.047 :: visual. 
+0.005 :: facial_palsy.
+0.005 :: speech.
+
+fast :- weakness.
+fast :- facial_palsy.
+fast :- speech.
+e_fast :- fast.
+e_fast :- sensory.
+e_fast :- visual. 
+
+0.23 :: facial_palsy :- stroke. 
+0.49 :: speech :- stroke.
+0.48 :: weakness :- stroke.
+0.23 :: sensory :- stroke. 
+0.23 :: visual :- stroke.
+
+
+
