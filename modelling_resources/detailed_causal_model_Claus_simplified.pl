@@ -1,4 +1,4 @@
-0.002 :: stroke. 
+0.002 :: stroke_or_TIA. 
 0.078 :: weakness.
 0.063 :: sensory.
 0.047 :: visual. 
@@ -12,7 +12,7 @@ e_fast :- fast.
 e_fast :- sensory.
 e_fast :- visual. 
 
-(409/900) :: tia; (254/900) :: minor; (237/900) :: major :- stroke.
+(409/900) :: tia; (254/900) :: minor; (237/900) :: major :- stroke_or_TIA.
 
 (36/409) :: facial_palsy :- tia. 
 (176/409) :: speech :- tia.
