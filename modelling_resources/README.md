@@ -12,7 +12,7 @@ There are two models derived from Claus _et al._, a simplified model derived dir
 ### Simplified model
 
 The simplified model was encoded as a causal ProbLog model directly in `detailed_causal_model_Claus_simplified.pl`.
-The stroke prediction logic is derived from this model by querying all possible combinations of evidences for querying all of `tia`. `minor` and `major`. 
+The stroke prediction logic is derived from this model by querying all possible combinations of evidences for querying all of `tia`, `minor` and `major`. 
 The code for this can be found in `Compute_detailed_probabilities.sh`. 
 
 ### Full model
@@ -20,7 +20,7 @@ The code for this can be found in `Compute_detailed_probabilities.sh`.
 The model taking full account of correlations between symptoms was created by first manually transcribing Figure 2 into a list, `Claus_combinations_detailed.txt`. 
 Then, a short awk script `summarise_combinations.sh` is used to aggregate combinations which do not differ in the symptoms covered here (saved as `Claus_detailed_summary.txt`).
 We then use another awk script, `make_causal_stroke_logic.sh`, to convert this information into a logic program with annotated disjunctions. 
-After completing this script with the null model taken from `detailed_causal_model_Claus_simplified.pl`, we then continue using  `Compute_detailed_probabilities.sh` as above. 
+After completing this script with the null model taken from `detailed_causal_model_Claus_simplified.pl`, we then continue using  `compute_detailed_probabilities.sh` as above. 
   
 ## Stroke prediction as such
 
