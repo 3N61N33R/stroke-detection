@@ -27,13 +27,13 @@ for mask in {0..31}; do
                     echo "evidence(\\+ ${feature})."
                 fi
             done
-            echo "query(stroke)."
+            echo "query(stroke_or_tia)."
         } | problog --combine causal_model_Claus_full.pl -
     )
 
     # Extract probability 
-    prob=$(echo "$output" | awk '/^stroke:/ {print $2}')
+    prob=$(echo "$output" | awk '/^stroke_or_tia:/ {print $2}')
 
     # Final output
-    echo "$prob :: stroke :- $label."
+    echo "$prob :: stroke_or_tia :- $label."
 done

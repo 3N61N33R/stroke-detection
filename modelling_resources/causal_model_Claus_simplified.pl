@@ -1,4 +1,4 @@
-0.002 :: stroke. 
+0.002 :: stroke_or_tia. 
 0.078 :: weakness.
 0.063 :: sensory.
 0.047 :: visual. 
@@ -14,12 +14,9 @@ e_fast :- visual.
 
 weakness :- arm_weakness.
 weakness :- leg_weakness.
-0.23 :: facial_palsy :- stroke. 
-0.49 :: speech :- stroke.
-0.48 :: arm_weakness :- stroke.
-0.38 :: leg_weakness :- stroke.
-0.23 :: sensory :- stroke. 
-0.23 :: visual :- stroke.
-
-
-
+0.23 :: facial_palsy :- stroke_or_tia. 
+0.49 :: speech :- stroke_or_tia.
+0.48 :: arm_weakness :- stroke_or_tia.
+0.38 :: leg_weakness :- stroke_or_tia.
+0.23 :: sensory :- stroke_or_tia. 
+0.23 :: visual :- stroke_or_tia.
