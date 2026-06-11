@@ -2,170 +2,153 @@
 Stroke Detection Model Trainer
 ==============================
 
-This script handles the end-to-end training pipeline for the Facial Droop CNN.
-It performs the following steps:
-1. Downloads the specific stroke dataset from Kaggle.
-2. Preprocesses images (Resize, Tensor conversion).
-3. Trains the ResNet-based model (defined in src.networks.facial_net).
-4. Validates performance after each epoch.
-5. Saves the trained weights to the project's 'models' directory.
+End-to-end training pipeline for the Facial Droop CNN.
+Downloads the dataset, applies preprocessing, trains the model,
+and saves the trained weights for inference.
 
-Usage:
+Usage (Default):
     python src/training/train.py
+    
+Usage (Custom Parameters):
+    python src/training/train.py --epochs 15 --lr 0.0005
 """
 
 import os
 import sys
-import kagglehub
+import argparse
+import random
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, random_split
 from torchvision import datasets, transforms
+import kagglehub
 
 # ==============================================================================
 # SETUP PATHS
 # ==============================================================================
-# Calculate project root to allow importing modules from 'src'
-# Logic: Current File -> src/training -> src -> Project Root
+# Establish root directory to ensure reliable imports regardless of where 
+# the script is executed from.
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 ROOT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, "../../"))
 
 if ROOT_DIR not in sys.path:
     sys.path.append(ROOT_DIR)
 
-# Import the model architecture
 from src.networks.facial_net import get_model
-
-# ==============================================================================
-# CONFIGURATION
-# ==============================================================================
-BATCH_SIZE = 32
-LEARNING_RATE = 0.001
-EPOCHS = 10
-IMG_SIZE = 224
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# Model output path
-MODEL_SAVE_PATH = os.path.join(ROOT_DIR, "models", "stroke_mvp.pth")
-DATASET_HANDLE = "abdussalamelhanashy/annotated-facial-images-for-stroke-classification"
-
 
 # ==============================================================================
 # HELPER FUNCTIONS
 # ==============================================================================
-def find_dataset_root(start_path):
+def set_seed(seed):
     """
-    Recursively searches for the directory containing class subfolders
-    ('Stroke' and 'NonStroke') required by ImageFolder.
+    Locks random number generators across all libraries.
+    This guarantees that the 80/20 data split and weight initialization
+    are exactly the same every time, ensuring experimental reproducibility.
     """
-    if not os.path.exists(start_path):
-        return None
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
 
-    for root, dirs, files in os.walk(start_path):
-        # Case-insensitive check might be safer, but strict for now matches dataset
+def get_dataset_path(dataset_handle):
+    """
+    Downloads dataset via KaggleHub and recursively locates the root directory
+    that contains the 'Stroke' and 'NonStroke' class folders.
+    """
+    print("Downloading dataset from Kaggle...")
+    base_path = kagglehub.dataset_download(dataset_handle)
+    
+    for root, dirs, _ in os.walk(base_path):
         if "Stroke" in dirs and "NonStroke" in dirs:
             return root
-    return None
+            
+    raise FileNotFoundError("Required class directories ('Stroke', 'NonStroke') not found.")
 
+# ==============================================================================
+# MAIN TRAINING PIPELINE
+# ==============================================================================
+def train(args):
+    # 1. Initialization
+    set_seed(args.seed)
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    print(f"Initializing training pipeline on: {device}")
 
-def train_model():
-    """
-    Main execution routine: Download -> Load -> Train -> Save.
-    """
-    print(f"🚀 Initializing Training Pipeline on {DEVICE}...")
+    # 2. Dataset Preparation
+    dataset_dir = get_dataset_path(args.dataset)
+    
+    # Define transformations: resize for uniform CNN input, convert to PyTorch tensors
+    transform = transforms.Compose([
+        transforms.Resize((args.img_size, args.img_size)),
+        transforms.ToTensor()
+    ])
 
-    # ---------------------------------------------------------
-    # 1. DOWNLOAD DATASET
-    # ---------------------------------------------------------
-    print("📥 Downloading dataset via KaggleHub...")
-    try:
-        # Note: Requires ~/.kaggle/kaggle.json to be present
-        path = kagglehub.dataset_download(DATASET_HANDLE)
-        print(f"✅ Download complete at: {path}")
-    except Exception as e:
-        print(f"❌ Kaggle Download Failed: {e}")
-        print("💡 Hint: Ensure you have your API key at ~/.kaggle/kaggle.json")
-        return
-
-    # ---------------------------------------------------------
-    # 2. LOCATE DATA
-    # ---------------------------------------------------------
-    dataset_dir = find_dataset_root(path)
-    if not dataset_dir:
-        raise FileNotFoundError(
-            "Could not find 'Stroke' and 'NonStroke' folders in the downloaded dataset."
-        )
-
-    print(f"✅ Valid dataset root identified: {dataset_dir}")
-
-    # ---------------------------------------------------------
-    # 3. PREPROCESSING & SPLITTING
-    # ---------------------------------------------------------
-    data_transforms = transforms.Compose(
-        [
-            transforms.Resize((IMG_SIZE, IMG_SIZE)),
-            transforms.ToTensor(),
-            # Optional: Add Normalization here if needed for ResNet
-            # transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ]
-    )
-
-    full_dataset = datasets.ImageFolder(dataset_dir, transform=data_transforms)
-    print(f"ℹ️  Classes Detected: {full_dataset.classes}")
-
-    # 80/20 Train-Val Split
+    # Load dataset and calculate an 80/20 split for training vs. validation
+    full_dataset = datasets.ImageFolder(dataset_dir, transform=transform)
     train_size = int(0.8 * len(full_dataset))
     val_size = len(full_dataset) - train_size
-    train_data, val_data = random_split(full_dataset, [train_size, val_size])
+    
+    # Pass the locked seed generator to random_split to prevent data leakage
+    generator = torch.Generator().manual_seed(args.seed)
+    train_data, val_data = random_split(full_dataset, [train_size, val_size], generator=generator)
 
-    train_loader = DataLoader(train_data, batch_size=BATCH_SIZE, shuffle=True)
-    val_loader = DataLoader(val_data, batch_size=BATCH_SIZE, shuffle=False)
+    # DataLoaders handle batching and shuffling the data automatically
+    train_loader = DataLoader(train_data, batch_size=args.batch_size, shuffle=True)
+    val_loader = DataLoader(val_data, batch_size=args.batch_size, shuffle=False)
 
-    print(
-        f"ℹ️  Training Samples: {len(train_data)} | Validation Samples: {len(val_data)}"
-    )
+    print(f"Classes Detected: {full_dataset.classes}")
+    print(f"Training samples: {len(train_data)} | Validation samples: {len(val_data)}")
 
-    # ---------------------------------------------------------
-    # 4. INITIALIZE MODEL
-    # ---------------------------------------------------------
-    model = get_model().to(DEVICE)
+    # 3. Model & Optimizer Configuration
+    model = get_model().to(device)
+    
+    # CrossEntropyLoss expects raw unscaled logits, which matches our CNN output.
     criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+    optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
-    # ---------------------------------------------------------
-    # 5. TRAINING LOOP
-    # ---------------------------------------------------------
-    for epoch in range(EPOCHS):
+    # 4. Training Loop
+    print("\nBeginning training...")
+    for epoch in range(args.epochs):
+        
+        # Set model to training mode (enables dropout layers)
         model.train()
-        running_loss = 0.0
-        correct = 0
-        total = 0
+        running_loss, correct, total = 0.0, 0, 0
 
-        # --- TRAINING PHASE ---
         for inputs, labels in train_loader:
-            inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
+            inputs, labels = inputs.to(device), labels.to(device)
 
+            # Clear previous gradients to prevent accumulation
             optimizer.zero_grad()
+            
+            # Forward pass: Predict, calculate error, backpropagate, update weights
             outputs = model(inputs)
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
 
+            # Track metrics
             running_loss += loss.item()
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
 
-        # --- VALIDATION PHASE ---
-        model.eval()
-        val_loss = 0.0
-        val_correct = 0
-        val_total = 0
+        train_loss = running_loss / len(train_loader)
+        train_acc = 100 * correct / total
 
+        # 5. Validation Loop
+        # Set model to evaluation mode (disables dropout layers for consistent testing)
+        model.eval()
+        val_loss, val_correct, val_total = 0.0, 0, 0
+
+        # torch.no_grad() disables gradient calculation, saving memory and speeding up validation
         with torch.no_grad():
             for inputs, labels in val_loader:
-                inputs, labels = inputs.to(DEVICE), labels.to(DEVICE)
+                inputs, labels = inputs.to(device), labels.to(device)
+                
                 outputs = model(inputs)
                 loss = criterion(outputs, labels)
 
@@ -174,25 +157,30 @@ def train_model():
                 val_total += labels.size(0)
                 val_correct += (predicted == labels).sum().item()
 
-        # --- STATISTICS ---
-        train_acc = 100 * correct / total
+        val_loss = val_loss / len(val_loader)
         val_acc = 100 * val_correct / val_total
-        avg_train_loss = running_loss / len(train_loader)
-        avg_val_loss = val_loss / len(val_loader)
 
-        print(
-            f"Epoch {epoch+1}/{EPOCHS} | "
-            f"Train Loss: {avg_train_loss:.4f} ({train_acc:.1f}%) | "
-            f"Val Loss: {avg_val_loss:.4f} ({val_acc:.1f}%)"
-        )
+        print(f"Epoch {epoch+1:02d}/{args.epochs} | "
+              f"Train Loss: {train_loss:.4f} (Acc: {train_acc:.1f}%) | "
+              f"Val Loss: {val_loss:.4f} (Acc: {val_acc:.1f}%)")
 
-    # ---------------------------------------------------------
-    # 6. SAVE ARTIFACTS
-    # ---------------------------------------------------------
-    os.makedirs(os.path.dirname(MODEL_SAVE_PATH), exist_ok=True)
-    torch.save(model.state_dict(), MODEL_SAVE_PATH)
-    print(f"🎉 Model saved successfully to: {MODEL_SAVE_PATH}")
-
+    # 6. Save Final Artifacts
+    # Only save the state_dict (weights and biases), not the entire class object
+    os.makedirs(os.path.dirname(args.save_path), exist_ok=True)
+    torch.save(model.state_dict(), args.save_path)
+    print(f"\nModel saved successfully to: {args.save_path}")
 
 if __name__ == "__main__":
-    train_model()
+    # Argparse allows hyperparameters to be modified from the terminal
+    # without altering the source code, a standard requirement for academic review.
+    parser = argparse.ArgumentParser(description="Train Facial Droop CNN")
+    parser.add_argument("--epochs", type=int, default=10, help="Number of training epochs")
+    parser.add_argument("--batch-size", type=int, default=32, help="Batch size for training")
+    parser.add_argument("--lr", type=float, default=0.001, help="Learning rate")
+    parser.add_argument("--img-size", type=int, default=224, help="Input image resolution")
+    parser.add_argument("--seed", type=int, default=42, help="Random seed for reproducibility")
+    parser.add_argument("--dataset", type=str, default="abdussalamelhanashy/annotated-facial-images-for-stroke-classification", help="Kaggle dataset handle")
+    parser.add_argument("--save-path", type=str, default=os.path.join(ROOT_DIR, "models", "stroke_mvp.pth"), help="Destination path for trained weights")
+    
+    args = parser.parse_args()
+    train(args)
