@@ -1,0 +1,51 @@
+9: tia, speech, sensory
+11: minor, sensory
+8: minor, speech, facial_palsy
+11: tia, speech, facial_palsy
+58: tia, weakness
+2: major, visual, sensory, speech
+26: minor, visual
+37: major, speech, weakness
+7: minor, speech, sensory, weakness
+11: major, speech, sensory, weakness, facial_palsy
+24: minor, sensory, weakness
+22: tia, speech, weakness
+14: major, visual, speech, sensory, weakness, facial_palsy
+21: minor, speech, weakness
+4: minor, speech, sensory
+8: major, visual, speech, weakness, facial_palsy
+8: tia, speech, weakness, facial_palsy
+17: tia, sensory
+2: tia, sensory, weakness, facial_palsy
+3: minor, facial_palsy
+41: minor, weakness
+4: minor, visual, speech
+2: tia, visual, sensory
+7: tia, visual, speech
+6: minor, speech, sensory, weakness, facial_palsy
+3: major, visual, sensory, weakness, facial_palsy
+4: minor, visual, sensory, weakness
+15: major, speech, sensory, weakness
+8: major, weakness, facial_palsy
+3: major, speech
+5: major, visual, speech, weakness
+3: major, visual, weakness
+9: major, sensory, weakness
+115: tia, speech
+5: minor, weakness, facial_palsy
+54: major, speech, weakness, facial_palsy
+2: minor, visual, sensory
+5: minor, sensory, weakness, facial_palsy
+2: minor, visual, weakness
+3: tia, weakness, facial_palsy
+19: major, weakness
+3: major, sensory, weakness, facial_palsy
+2: major, speech, sensory, facial_palsy
+8: major, speech, facial_palsy
+85: tia, visual
+21: tia, sensory, weakness
+12: minor, speech, weakness, facial_palsy
+32: minor, speech
+3: major, sensory, speech, weakness, facial_palsy
+4: major, visual, speech, sensory, weakness
+3: tia, facial_palsy
