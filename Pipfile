@@ -12,6 +12,7 @@ deepproblog = "*"
 matplotlib = "*"
 kagglehub = "*"
 streamlit = "*"
+scikit-learn = "*"
 
 [dev-packages]
 ipykernel = "*"
