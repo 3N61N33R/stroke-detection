@@ -1,3 +1,6 @@
+# Data files
+dataset/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -208,3 +211,7 @@ __marimo__/
 
 # VS Code settings and extensions
 .vscode/
+
+# Editor save state files
+*.*~
+*.*#

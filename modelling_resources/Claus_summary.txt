@@ -1,0 +1,26 @@
+14: visual, speech, sensory, weakness, facial_palsy
+22: speech, sensory, weakness
+17: speech, sensory, weakness, facial_palsy
+11: visual, speech
+27: speech, facial_palsy
+2: speech, sensory, facial_palsy
+111: visual
+4: visual, sensory
+13: speech, sensory
+3: sensory, speech, weakness, facial_palsy
+8: visual, speech, weakness, facial_palsy
+10: sensory, weakness, facial_palsy
+4: visual, speech, sensory, weakness
+118: weakness
+6: facial_palsy
+150: speech
+28: sensory
+3: visual, sensory, weakness, facial_palsy
+16: weakness, facial_palsy
+5: visual, speech, weakness
+4: visual, sensory, weakness
+74: speech, weakness, facial_palsy
+2: visual, sensory, speech
+5: visual, weakness
+80: speech, weakness
+54: sensory, weakness

@@ -33,6 +33,12 @@ check_face(null_patient, null).
 
 nn(droop_classifier, [Image], State, [normal, droop])::check_face(Image, State).
 
+% This only makes sense if there are other options for the neutral image than normal and droop.
+% Otherwise, we can just use 
+% facial_droop_detected(Person) :-
+% 	belongs_to(SmileImg, Person),
+%	check_face(SmileImg, droop).
+
 facial_droop_detected(Person, NeutralImg, SmileImg) :-
 	belongs_to(NeutralImg, Person),
 	belongs_to(SmileImg, Person),
@@ -54,6 +60,17 @@ facial_droop_detected(Person, NeutralImg, SmileImg) :-
 0.42::speech_deficit(P) :- gender(P, male),   speech_issue(P).
 
 0.89::arm_deficit(P) :- arm_weakness(P).
+
+% Here we should include the correlation, at least if the user is unsure, say:
+% 0.18 :: speech_deficit(P) :- facial_droop_detected(P, _, _).
+% The number should reflect what is known about the correlation of those symptoms in the literature.
+% The observations from the system can then be entered as evidence. 
+% Alternatively, we keep "unsure" as a predicate, and use 
+% 0.18 :: speech_deficit(P) :- speech_issue_unsure(P), facial_droop_detected(P, _, _).
+% Both can be legitimate architecture choices. 
+% Important is that we can justify any numbers we use here from the literature. 
+% The last option we could consider is that the user's input is directly converted into a percentage, such as in
+% 0.5::speech_issue(P).
 
 fast_positive(P) :-
 	facial_droop_detected(P, _, _).

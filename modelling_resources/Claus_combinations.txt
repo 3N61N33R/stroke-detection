@@ -1,0 +1,91 @@
+104: speech
+74: visual
+23: weakness
+20: weakness
+15: sensory
+12: weakness
+11: visual
+11: speech
+11: sensory, weakness
+11: speech, facial_palsy
+9: speech, sensory
+9: speech, weakness
+8: sensory, weakness
+7: visual, speech
+7: speech, weakness
+6: speech, weakness
+4: speech, weakness, facial_palsy
+4: speech, weakness, facial_palsy
+3: weakness
+3: facial_palsy
+3: weakness, facial_palsy
+2: sensory
+2: visual, sensory
+2: sensory, weakness
+2: sensory, weakness, facial_palsy
+
+26: speech
+22: visual
+22: weakness
+13: weakness
+13: speech, weakness
+10: sensory, weakness
+8: sensory
+8: speech, weakness
+8: sensory, weakness
+7: speech, weakness, facial_palsy
+6: speech
+6: sensory, weakness
+6: speech, facial_palsy
+6: speech, sensory, weakness, facial_palsy
+5: speech, weakness, facial_palsy
+4: visual
+4: speech, sensory
+4: speech, sensory, weakness
+4: weakness
+3: sensory
+3: speech, sensory, weakness
+3: facial_palsy
+3: sensory, weakness, facial_palsy
+3: weakness, facial_palsy
+2: visual, speech
+2: visual, speech
+2: visual, sensory
+2: weakness
+2: visual, sensory, weakness
+2: visual, weakness
+2: visual, sensory, weakness
+2: speech, facial_palsy
+2: weakness, facial_palsy
+2: sensory, weakness, facial_palsy
+
+45: speech, weakness, facial_palsy
+24: speech, weakness
+19: weakness
+14: visual, speech, sensory, weakness, facial_palsy
+11: speech, weakness
+10: speech, sensory, weakness
+9: sensory, weakness
+8: weakness, facial_palsy
+6: speech, facial_palsy
+6: speech, sensory, weakness, facial_palsy
+5: visual, speech, weakness
+5: speech, weakness, facial_palsy
+5: visual, speech, weakness, facial_palsy
+4: visual, speech, sensory, weakness
+4: speech, weakness, facial_palsy
+3: speech
+3: visual, weakness
+3: speech, sensory, weakness
+3: visual, speech, weakness, facial_palsy
+3: speech, sensory, weakness, facial_palsy
+3: sensory, weakness, facial_palsy
+3: visual, sensory, weakness, facial_palsy
+3: sensory, speech, weakness, facial_palsy
+2: visual, sensory, speech
+2: speech, sensory, weakness
+2: speech, weakness
+2: speech, facial_palsy
+2: speech, sensory, facial_palsy
+2: speech, sensory, weakness, facial_palsy
+

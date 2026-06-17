@@ -1,0 +1,17 @@
+Reffile = "stroke_prediction_model_Claus_full.pl",
+Testfile = "stroke_prediction_model_Claus_divided.pl" .
+Accuracy: 0.9338648868403125
+Precision: 0.8686821135723597
+Recall: 0.9719964502950565
+
+Reffile = "stroke_prediction_model_Claus_full.pl",
+Testfile = "stroke_prediction_model_Claus_simplified.pl" .
+Accuracy: 0.9192795864390626
+Precision: 0.8299504054467435
+Recall: 0.9891475679052713
+
+Reffile = "stroke_prediction_model_Claus_full.pl",
+Testfile = "stroke_prediction_model_Claus_probfoil_standardised.pl" .
+Accuracy: 0.959854211970625
+Precision: 0.9619651268012008
+Recall: 0.9306019206428671

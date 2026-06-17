@@ -10,7 +10,7 @@ Architecture Source:
     - 4 Convolutional Blocks (16 -> 32 -> 64 -> 128 filters)
     - Max Pooling & Dropout (0.25) after each block
     - Fully Connected Layers (256 -> 2 classes)
-    - Softmax Output (Probability distribution)
+    - Raw Logits Output (for compatibility with nn.CrossEntropyLoss)
 
 Usage:
     from src.networks.facial_net import get_model
@@ -32,7 +32,6 @@ class FacialDroopCNN(nn.Module):
         # ------------------------------------------------------------------
         # 1. CONVOLUTIONAL LAYERS
         # ------------------------------------------------------------------
-        # Increasing filter depth: 16 -> 32 -> 64 -> 128
         self.conv1 = nn.Conv2d(3, 16, kernel_size=3, padding=1)
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
         self.conv3 = nn.Conv2d(32, 64, kernel_size=3, padding=1)
@@ -47,13 +46,10 @@ class FacialDroopCNN(nn.Module):
         # ------------------------------------------------------------------
         # 3. DENSE LAYERS
         # ------------------------------------------------------------------
-        # Flatten size calculation:
-        # Input 224x224 -> Pool 1 (112) -> Pool 2 (56) -> Pool 3 (28) -> Pool 4 (14)
-        # Final Feature Map: 128 filters * 14 * 14 pixels
         self.flatten_dim = 128 * 14 * 14
 
         self.fc1 = nn.Linear(self.flatten_dim, 256)
-        self.fc2 = nn.Linear(256, 2)  # Output: [P(Normal), P(Stroke)]
+        self.fc2 = nn.Linear(256, 2)  # Output: [Normal Logit, Stroke Logit]
 
         # ------------------------------------------------------------------
         # 4. WEIGHT INITIALIZATION
@@ -90,8 +86,8 @@ class FacialDroopCNN(nn.Module):
         x = F.relu(self.fc1(x))
         x = self.fc2(x)
 
-        # Output Probabilities
-        return F.softmax(x, dim=1)
+        # Output raw logits for nn.CrossEntropyLoss compatibility
+        return x
 
     def _initialize_weights(self):
         """
